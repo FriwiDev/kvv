@@ -1,0 +1,30 @@
+[package]
+name = "kvv-ui"
+version = "0.1.0"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+leptos = { version = "0.8", features = ["csr"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+serde_json = "1"
+console_error_panic_hook = "0.1.7"
+
+# Networking and parsing
+gloo-net = "0.6"
+serde_urlencoded = "0.7"
+quick-xml = "0.28"
+html-escape = "0.2"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+[target.'cfg(test)'.dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+
+[workspace]
+members = ["src-tauri"]
