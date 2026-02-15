@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use js_sys::JSON;
 use leptos::web_sys::console;
-use crate::efa::stopfinder;
+use crate::efa::{stopfinder, StopSuggestion};
 
 #[wasm_bindgen]
 extern "C" {
@@ -24,8 +24,10 @@ pub fn App() -> impl IntoView {
     let (greet_msg, set_greet_msg) = signal(String::new());
     // Signal to hold the geolocation result (printed to UI)
     let (pos_msg, set_pos_msg) = signal(String::new());
-    // Signal to hold station search results as display strings
-    let (stations, set_stations) = signal(Vec::<String>::new());
+    // Signal to hold station search results as structured entries
+    let (stations, set_stations) = signal(Vec::<Station>::new());
+    // Selected station
+    let (selected, set_selected) = signal(None::<Station>);
 
     let update_name = move |ev| {
         let v = event_target_value(&ev);
@@ -48,16 +50,9 @@ pub fn App() -> impl IntoView {
                         set_stations.set(Vec::new());
                     } else {
                         set_greet_msg.set(format!("Found {} stations", list.len()));
-                        let formatted: Vec<String> = list
+                        let formatted: Vec<Station> = list
                             .into_iter()
-                            .map(|s| {
-                                let place = s.place.unwrap_or_default();
-                                if place.is_empty() {
-                                    format!("{} — {}", s.name, s.id)
-                                } else {
-                                    format!("{} ({}) — {}", s.name, place, s.id)
-                                }
-                            })
+                            .map(|s: StopSuggestion| Station { id: s.id, name: s.name, place: s.place })
                             .collect();
                         set_stations.set(formatted);
                     }
@@ -269,34 +264,37 @@ pub fn App() -> impl IntoView {
 
     view! {
         <main class="container">
-            <h1>"Welcome to Tauri + Leptos"</h1>
 
-            <div class="row">
-                <a href="https://tauri.app" target="_blank">
-                    <img src="public/tauri.svg" class="logo tauri" alt="Tauri logo"/>
-                </a>
-                <a href="https://docs.rs/leptos/" target="_blank">
-                    <img src="public/leptos.svg" class="logo leptos" alt="Leptos logo"/>
-                </a>
+            // search bar pinned at top; logos removed
+            <div class="search-bar">
+                <form class="row" on:submit=greet>
+                    <input
+                        id="greet-input"
+                        placeholder="Station name..."
+                        on:input=update_name
+                    />
+                    <button type="submit">"Search Stations"</button>
+                </form>
             </div>
-            <p>"Click on the Tauri and Leptos logos to learn more."</p>
 
-            <form class="row" on:submit=greet>
-                <input
-                    id="greet-input"
-                    placeholder="Station name..."
-                    on:input=update_name
-                />
-                <button type="submit">"Search Stations"</button>
-                <button type="button" on:click=get_position>"Get Position"</button>
-            </form>
             <p>{ move || greet_msg.get() }</p>
             <ul>
-                { move || stations.get().iter().map(|s| {
-                    let s = s.clone();
-                    view! { <li>{ s }</li> }
-                }).collect::<Vec<_>>() }
+                { move || {
+                    let set_selected = set_selected.clone();
+                    stations.get().iter().map(|s| {
+                        let s = s.clone();
+                        let display = if let Some(p) = &s.place {
+                            if p.is_empty() { format!("{} — {}", s.name, s.id) } else { format!("{} ({}) — {}", s.name, p, s.id) }
+                        } else {
+                            format!("{} — {}", s.name, s.id)
+                        };
+                        view! { <li on:click=move |_: MouseEvent| { set_selected.set(Some(s.clone())); }>{ display }</li> }
+                    }).collect::<Vec<_>>()
+                } }
             </ul>
+            <p>
+                { move || selected.get().map(|st| format!("Selected: {} ({})", st.name, st.id)).unwrap_or_default() }
+            </p>
             <pre>{ move || pos_msg.get() }</pre>
         </main>
     }
@@ -316,4 +314,11 @@ fn js_value_to_string(v: &JsValue) -> String {
         Ok(s) => s.as_string().unwrap_or_else(|| format!("{:?}", v)),
         Err(_) => v.as_string().unwrap_or_else(|| format!("{:?}", v)),
     }
+}
+
+#[derive(Clone)]
+struct Station {
+    id: String,
+    name: String,
+    place: Option<String>,
 }
